@@ -75,6 +75,27 @@ def clean_and_tokenize(
     return clean_tokens
 
 
+def process_article_to_sentences(article_text: str) -> List[str]:
+    """Split an article into sentences, clean, and tokenize each with Underthesea."""
+    from .data_reader import split_into_sentences
+
+    sentences = split_into_sentences(article_text)
+    tokenized_lines: List[str] = []
+    for s in sentences:
+        tokens = clean_and_tokenize(s)
+        if len(tokens) >= 3:
+            tokenized_lines.append(" ".join(tokens))
+    return tokenized_lines
+
+
+def process_articles_batch(articles_batch: List[str]) -> List[str]:
+    """Process a batch of articles (for multiprocessing workers)."""
+    batch_lines: List[str] = []
+    for art in articles_batch:
+        batch_lines.extend(process_article_to_sentences(art))
+    return batch_lines
+
+
 class Vocabulary:
     """Vocabulary manager with Subsampling support for Word2Vec."""
 
@@ -105,6 +126,33 @@ class Vocabulary:
             counter.update(tokens)
 
         # Filter words with frequency >= min_count
+        valid_words = [
+            (word, count)
+            for word, count in counter.most_common()
+            if count >= self.min_count
+        ]
+
+        self.word2idx = {}
+        self.idx2word = {}
+        self.word_counts = []
+
+        for idx, (word, count) in enumerate(valid_words):
+            self.word2idx[word] = idx
+            self.idx2word[idx] = word
+            self.word_counts.append(count)
+
+        self.total_words = sum(self.word_counts)
+        self._calculate_subsampling_probs()
+
+    def build_vocab_from_file(self, filepath: str) -> None:
+        """Build vocabulary by streaming a tokenized text file line by line (memory-safe)."""
+        counter: Counter = Counter()
+        with open(filepath, "r", encoding="utf-8") as f:
+            for line in f:
+                words = line.strip().split()
+                if words:
+                    counter.update(words)
+
         valid_words = [
             (word, count)
             for word, count in counter.most_common()

@@ -47,6 +47,8 @@ venv.bak/
 data/raw/*
 !data/raw/.gitkeep
 data/processed/*
+!data/processed/vocab_raw_487k.json
+!data/processed/vocab.json
 !data/processed/.gitkeep
 checkpoints/*
 !checkpoints/.gitkeep
