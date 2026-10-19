@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VietVec Vector Pairs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=Spectral:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #000000;
+    --panel: #05080F;
+    --line: #161D2C;
+    --line-2: #283147;
+    --ink: #E8EDF7;
+    --ink-2: #9AA3B5;
+    --ink-3: #5E6679;
+    --blue: #3D6BFF;
+    --blue-ink: #8FA9FF;
+
+    /* Data: one hue per relation, validated for CVD on the black surface. Controls stay gray. */
+    --g-capital: #BA7917;
+    --g-gender: #A74449;
+    --g-language: #A281D9;
+    --g-province: #11AE89;
+    --g-antonym: #9AA3B5;
+    --g-random: #5D6578;
+
+    --serif: "Spectral", Georgia, serif;
+    --sans: "Be Vietnam Pro", system-ui, sans-serif;
+    --cell: 17px;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 14px/1.5 var(--sans);
+    font-feature-settings: "tnum" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+  .page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 100vh;
+  }
+
+  header {
+    grid-column: 1 / -1;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px;
+    padding: 18px 28px;
+  }
+  h1 {
+    margin: 0 auto 0 0;
+    font: 400 26px/1.15 var(--serif);
+  }
+  h1 .op { color: var(--blue); font-family: var(--sans); margin: 0 .22em; }
+  .seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 8px; padding: 2px; }
+  .seg button {
+    border: 0; background: none; padding: 5px 13px; border-radius: 6px; cursor: pointer;
+    color: var(--ink-2); font-size: 13px;
+  }
+  .seg button[aria-pressed="true"] { background: var(--blue); color: #fff; }
+  .seg button:not([aria-pressed="true"]):hover { color: var(--ink); }
+  .controls { display: flex; gap: 10px; }
+
+  /* Scene */
+  .stage { position: relative; min-height: 0; }
+  #scene { position: absolute; inset: 0; cursor: grab; touch-action: none; }
+  #scene:active { cursor: grabbing; }
+  #scene canvas { display: block; }
+  .pca { position: absolute; left: 28px; bottom: 16px; margin: 0; color: var(--ink-3); font-size: 12px; pointer-events: none; }
+
+  .lbl { width: 0; height: 0; pointer-events: none; }
+  .lbl span {
+    position: absolute; left: 9px; top: -0.72em; white-space: nowrap;
+    font: 400 14px/1.2 var(--serif); color: var(--ink);
+    text-shadow: 0 0 3px #000, 0 0 6px #000;
+    transition: opacity .15s;
+  }
+  .lbl.tail span { color: var(--ink-2); }
+  .lbl.group span { font: 500 13px/1.2 var(--sans); color: var(--ink-2); left: 0; transform: translateX(-50%); }
+  .lbl.dim span { opacity: .14; }
+
+  .tip {
+    position: fixed; z-index: 10; pointer-events: none;
+    background: #0B101C; border: 1px solid var(--line-2); border-radius: 6px;
+    padding: 7px 10px; font-size: 12px; line-height: 1.5; color: var(--ink-2);
+    opacity: 0; transition: opacity .1s;
+  }
+  .tip.on { opacity: 1; }
+  .tip b { color: var(--ink); font-weight: 500; font-size: 14px; }
+  .tip .w { font-family: var(--serif); color: var(--ink); font-size: 14px; }
+
+  /* Panel */
+  .panel {
+    background: var(--panel);
+    border-left: 1px solid var(--line);
+    overflow-y: auto;
+    min-height: 0;
+    padding: 20px 28px 28px 24px;
+  }
+  .key { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; color: var(--ink-3); font-size: 12px; }
+  .key .bar { width: 120px; height: 6px; border-radius: 2px; }
+
+  .matrix { border-collapse: separate; border-spacing: 0; }
+  .matrix th, .matrix td { padding: 0; font-weight: 400; text-align: left; }
+  .grp th { padding: 18px 0 6px; }
+  .grp button {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: none; border: 0; padding: 2px 0; cursor: pointer;
+    font: 500 13px/1.3 var(--sans); color: var(--ink);
+  }
+  .grp button[aria-pressed="false"] { color: var(--ink-3); }
+  .grp button[aria-pressed="false"] i { opacity: .3; }
+  .grp i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .grp .par { color: var(--ink-3); font-size: 12px; padding: 18px 0 6px; text-align: right; }
+
+  .row th, .row td { height: var(--cell); }
+  .row th.pair {
+    padding-right: 14px; white-space: nowrap;
+    font: 400 14px/1 var(--serif); color: var(--ink-2); cursor: default;
+  }
+  .row th.pair .miss { color: var(--ink-3); }
+  .row td.c { width: var(--cell); padding: 1px; }
+  .row td.c span { display: block; width: calc(var(--cell) - 2px); height: calc(var(--cell) - 2px); border-radius: 2px; }
+  .row td.c.diag span { background: var(--line); }
+  .row td.c.gs { padding-left: 5px; }
+  .row.hot th.pair { color: var(--ink); }
+  .row.off { opacity: .3; }
+  td.c.hot span { outline: 2px solid var(--ink); outline-offset: -1px; }
+
+  .empty { padding: 48px 28px; color: var(--ink-2); max-width: 60ch; }
+  .empty code { color: var(--ink); }
+
+  @media (max-width: 1100px) {
+    .page { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; height: auto; }
+    .stage { height: min(68vh, 620px); }
+    .panel { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+    .table-wrap { overflow-x: auto; }
+  }
+  @media (max-width: 640px) {
+    header { padding: 14px 16px; }
+    h1 { font-size: 21px; }
+    .pca { left: 16px; }
+    .panel { padding: 8px 16px 24px; }
+    :root { --cell: 12px; }
+    .row th.pair { font-size: 13px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script src="pairs.js"></script>
+</head>
+<body>
+<div class="page" id="page">
+  <header>
+    <h1>hà nội<span class="op">−</span>việt nam<span class="op">≈</span>seoul<span class="op">−</span>hàn quốc</h1>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Cách vẽ">
+        <button type="button" data-mode="origin">Chung gốc</button>
+        <button type="button" data-mode="words">Vị trí từ</button>
+      </div>
+      <div class="seg" role="group" aria-label="Số chiều">
+        <button type="button" data-dims="2">2D</button>
+        <button type="button" data-dims="3">3D</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="stage" aria-label="Không gian vector">
+    <div id="scene"></div>
+    <p class="pca" id="pca"></p>
+  </section>
+
+  <aside class="panel" aria-label="Tích vô hướng giữa các vector hiệu">
+    <p class="key" id="key"></p>
+    <div class="table-wrap"><table class="matrix" id="matrix"></table></div>
+  </aside>
+</div>
+<div class="tip" id="tip" role="status" aria-live="polite"></div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+
+const D = window.VIETVEC_PAIRS;
+if (!D) {
+  document.getElementById("page").innerHTML =
+    '<p class="empty">Chưa có dữ liệu. Chạy <code>python scripts/visualize_pairs.py</code> để tạo <code>web/pairs.js</code>, rồi tải lại trang.</p>';
+  throw new Error("missing web/pairs.js");
+}
+
+const css = getComputedStyle(document.documentElement);
+const color = key => css.getPropertyValue(`--g-${key}`).trim();
+const word = w => w.replace(/_/g, " ");
+const fmt = (v, d = 2) => v.toLocaleString("vi-VN", { minimumFractionDigits: d, maximumFractionDigits: d });
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const pairs = D.groups.flatMap(g => g.pairs.map(p => ({ ...p, group: g })));
+pairs.forEach((p, i) => (p.i = i));
+const groupStart = new Set(D.groups.map(g => pairs.findIndex(p => p.group === g)));
+
+// ?dims=2&mode=words opens a specific view, so a link can point straight at it.
+const params = new URLSearchParams(location.search);
+const state = {
+  dims: params.get("dims") === "2" ? 2 : 3,
+  mode: params.get("mode") === "words" ? "words" : "origin",
+  hidden: new Set(),
+  hover: [],
+};
+function syncButtons() {
+  document.querySelectorAll("[data-dims]").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.dims === state.dims)));
+  document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)));
+}
+syncButtons();
+
+/* ---------- Heat scale: diverging, blue for aligned, warm gray for opposed ---------- */
+const NEUTRAL = new THREE.Color("#121826");
+const POS = [new THREE.Color("#2347D8"), new THREE.Color("#B7C8FF")];
+const NEG = new THREE.Color("#6E5444");
+// |v| < 0.05 is noise and stays neutral; same-relation pairs land around 0.2–0.6.
+function heat(v) {
+  const c = NEUTRAL.clone();
+  if (v >= 0) {
+    const t = Math.min(Math.max((v - 0.05) / 0.55, 0), 1);
+    return t < 0.5 ? c.lerp(POS[0], t / 0.5) : POS[0].clone().lerp(POS[1], (t - 0.5) / 0.5);
+  }
+  return c.lerp(NEG, Math.min(Math.max((-v - 0.05) / 0.25, 0), 1));
+}
+
+/* ---------- Table ---------- */
+const table = document.getElementById("matrix");
+{
+  let html = "";
+  for (const g of D.groups) {
+    html += `<tbody><tr class="grp">
+      <th scope="rowgroup"><button type="button" aria-pressed="true" data-toggle="${g.key}"><i style="background:${color(g.key)}"></i>${g.name}</button></th>
+      <td class="par" colspan="${pairs.length}" title="Tích vô hướng trung bình giữa các cặp trong nhóm">${fmt(g.consistency)}</td></tr>`;
+    for (const p of pairs.filter(p => p.group === g)) {
+      html += `<tr class="row" data-i="${p.i}"><th scope="row" class="pair">${word(p.a)} → ${word(p.b)}</th>
+        ${pairs.map(q => {
+          const diag = p.i === q.i;
+          return `<td class="c${diag ? " diag" : ""}${groupStart.has(q.i) ? " gs" : ""}" data-j="${q.i}"><span${diag ? "" : ` style="background:${heat(D.offset_dot[p.i][q.i]).getStyle()}"`}></span></td>`;
+        }).join("")}</tr>`;
+    }
+    html += "</tbody>";
+  }
+  table.innerHTML = html;
+
+  const stops = [-0.3, 0, 0.15, 0.3, 0.45, 0.6].map((v, k, a) => `${heat(v).getStyle()} ${(k / (a.length - 1)) * 100}%`);
+  document.getElementById("key").innerHTML =
+    `<span>ngược hướng</span><span class="bar" style="background:linear-gradient(90deg, ${stops.join(",")})"></span><span>cùng hướng</span>`;
+}
+
+/* ---------- Scene ---------- */
+const host = document.getElementById("scene");
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 1);
+host.appendChild(renderer.domElement);
+const labelRenderer = new CSS2DRenderer();
+Object.assign(labelRenderer.domElement.style, { position: "absolute", inset: "0", pointerEvents: "none" });
+host.appendChild(labelRenderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 500);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+const S = 10;
+const axisMat = new THREE.LineBasicMaterial({ color: 0x1a2133 });
+const axisLines = [0, 1, 2].map(k => {
+  const a = new THREE.Vector3(), b = new THREE.Vector3();
+  a.setComponent(k, -S * 1.1); b.setComponent(k, S * 1.1);
+  const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), axisMat);
+  scene.add(l);
+  return l;
+});
+const origin = new THREE.Mesh(new THREE.RingGeometry(0.22, 0.3, 32), new THREE.MeshBasicMaterial({ color: 0x3d6bff, side: THREE.DoubleSide }));
+scene.add(origin);
+
+const UP = new THREE.Vector3(0, 1, 0);
+const shaftGeo = new THREE.CylinderGeometry(0.05, 0.05, 1, 10).translate(0, 0.5, 0);
+const HEAD = 0.5;
+const headGeo = new THREE.ConeGeometry(0.17, HEAD, 18).translate(0, -HEAD / 2, 0);
+const tailGeo = new THREE.SphereGeometry(0.12, 16, 12);
+
+function makeLabel(text, cls) {
+  const el = document.createElement("div");
+  el.className = `lbl ${cls}`;
+  el.innerHTML = `<span></span>`;
+  el.firstChild.textContent = text;
+  return new CSS2DObject(el);
+}
+
+const arrows = pairs.map(p => {
+  const mat = new THREE.MeshBasicMaterial({ color: color(p.group.key), transparent: true });
+  const g = new THREE.Group();
+  const shaft = new THREE.Mesh(shaftGeo, mat), head = new THREE.Mesh(headGeo, mat), tail = new THREE.Mesh(tailGeo, mat);
+  [shaft, head, tail].forEach(m => (m.userData.i = p.i));
+  const la = makeLabel(word(p.a), "tail"), lb = makeLabel(word(p.b), "head");
+  g.add(shaft, head, tail, la, lb);
+  scene.add(g);
+  return { p, g, mat, shaft, head, tail, la, lb, from: new THREE.Vector3(), to: new THREE.Vector3() };
+});
+const pickables = arrows.flatMap(a => [a.shaft, a.head, a.tail]);
+
+// In the shared-origin view one label per relation, along its mean direction, names the bundle.
+const groupLabels = D.groups.filter(g => !g.control).map(g => {
+  const l = makeLabel(g.name, "group");
+  scene.add(l);
+  return { g, l, members: arrows.filter(a => a.p.group === g) };
+});
+function placeGroupLabels() {
+  for (const { l, members } of groupLabels) {
+    const mean = new THREE.Vector3();
+    members.forEach(a => mean.add(a.to));
+    mean.divideScalar(members.length);
+    const far = Math.max(...members.map(a => a.to.length()));
+    if (mean.length() > 1e-3) mean.setLength(far + 0.9);
+    l.position.copy(mean);
+  }
+}
+
+function place(a) {
+  const { from, to } = a;
+  const dir = to.clone().sub(from);
+  const len = dir.length();
+  if (len < 1e-4) { a.shaft.visible = a.head.visible = false; }
+  else {
+    a.shaft.visible = a.head.visible = true;
+    const q = new THREE.Quaternion().setFromUnitVectors(UP, dir.clone().normalize());
+    const h = Math.min(1, len * 0.45 / HEAD);
+    a.shaft.position.copy(from); a.shaft.quaternion.copy(q); a.shaft.scale.set(1, Math.max(len - HEAD * h, 1e-3), 1);
+    a.head.position.copy(to); a.head.quaternion.copy(q); a.head.scale.setScalar(h);
+  }
+  a.tail.position.copy(from);
+  a.la.position.copy(from);
+  a.lb.position.copy(to);
+}
+
+function target(a) {
+  const d = state.dims;
+  const v = arr => new THREE.Vector3(arr[0] * S, arr[1] * S, d === 3 ? arr[2] * S : 0);
+  if (state.mode === "words") return [v(D.coords[d][a.p.a]), v(D.coords[d][a.p.b])];
+  return [new THREE.Vector3(), v(D.offset_coords[d][a.p.i])];
+}
+
+let tween = null;
+function moveTo({ grow = false } = {}) {
+  const dur = reduceMotion ? 0 : grow ? 1100 : 700;
+  tween = {
+    t0: performance.now(), dur, grow,
+    items: arrows.map(a => {
+      const [tf, tt] = target(a);
+      return { a, f0: grow ? tf.clone() : a.from.clone(), t0: grow ? tf.clone() : a.to.clone(), tf, tt };
+    }),
+  };
+  arrows.forEach(a => {
+    a.lb.element.firstChild.textContent = state.mode === "origin" ? `${word(a.p.a)} → ${word(a.p.b)}` : word(a.p.b);
+  });
+  axisLines[2].visible = state.dims === 3;
+  origin.visible = state.mode === "origin";
+  const ev = D.explained_variance[state.mode === "origin" ? `offset_${state.dims}` : state.dims];
+  document.getElementById("pca").textContent = `PCA ${state.dims}D giữ ${Math.round(ev * 100)}% phương sai`;
+  applyHighlight();
+}
+const ease = t => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+function stepTween(now) {
+  if (!tween) return;
+  let done = true;
+  tween.items.forEach((it, k) => {
+    const delay = tween.grow ? k * 22 : 0;
+    const raw = tween.dur ? Math.min(Math.max((now - tween.t0 - delay) / tween.dur, 0), 1) : 1;
+    if (raw < 1) done = false;
+    const e = ease(raw);
+    it.a.from.lerpVectors(it.f0, it.tf, e);
+    it.a.to.lerpVectors(it.t0, it.tt, e);
+    place(it.a);
+  });
+  placeGroupLabels();
+  if (done) tween = null;
+}
+
+function frameCamera() {
+  controls.target.set(0, 0, 0);
+  // Narrow screens need the camera further back to keep the full ±S box in view.
+  const k = Math.max(1, 1.3 / camera.aspect) * (state.mode === "words" ? 1.15 : 1);
+  if (state.dims === 2) camera.position.set(0, 0, 33 * k);
+  else camera.position.set(17 * k, 11 * k, 23 * k);
+  camera.up.set(0, 1, 0);
+  controls.enableRotate = state.dims === 3;
+  controls.update();
+}
+
+/* ---------- Highlight & visibility ---------- */
+const rows = [...table.querySelectorAll("tr.row")];
+function applyHighlight() {
+  const hot = new Set(state.hover);
+  arrows.forEach(a => {
+    a.g.visible = !state.hidden.has(a.p.group.key);
+    const dim = hot.size > 0 && !hot.has(a.p.i);
+    a.mat.opacity = dim ? 0.12 : 1;
+    a.lb.element.classList.toggle("dim", dim);
+    // CSS2DRenderer rewrites style.display every frame from .visible, so toggle .visible.
+    a.la.visible = state.mode === "words" && hot.has(a.p.i);
+    a.lb.visible = state.mode === "words" || hot.has(a.p.i);
+  });
+  groupLabels.forEach(({ g, l }) => {
+    l.visible = state.mode === "origin" && !state.hidden.has(g.key);
+    l.element.classList.toggle("dim", hot.size > 0);
+  });
+  rows.forEach(r => {
+    const i = +r.dataset.i;
+    r.classList.toggle("hot", hot.has(i));
+    r.classList.toggle("off", state.hidden.has(pairs[i].group.key));
+  });
+}
+
+const tip = document.getElementById("tip");
+function showTip(html, x, y) {
+  tip.innerHTML = html;
+  tip.classList.add("on");
+  const r = tip.getBoundingClientRect();
+  tip.style.left = `${Math.min(x + 14, innerWidth - r.width - 8)}px`;
+  tip.style.top = `${Math.min(y + 14, innerHeight - r.height - 8)}px`;
+}
+function hideTip() { tip.classList.remove("on"); }
+const pairText = p => `<span class="w">${word(p.a)} → ${word(p.b)}</span>`;
+function pairTip(p) {
+  const guess = p.prediction[0].word;
+  return `${pairText(p)}<br>cos(a, b) ${fmt(p.cosine)}<br>đoán b: ${word(guess)} ${guess === p.b ? "✓" : "✗"}`;
+}
+
+let hotCell = null;
+table.addEventListener("pointerover", e => {
+  const cell = e.target.closest("td.c"), row = e.target.closest("tr.row");
+  hotCell?.classList.remove("hot"); hotCell = null;
+  if (!row) { state.hover = []; hideTip(); applyHighlight(); return; }
+  const i = +row.dataset.i;
+  if (cell && +cell.dataset.j !== i) {
+    const j = +cell.dataset.j;
+    state.hover = [i, j];
+    cell.classList.add("hot"); hotCell = cell;
+    showTip(`<b>${fmt(D.offset_dot[i][j])}</b><br>${pairText(pairs[i])}<br>${pairText(pairs[j])}`, e.clientX, e.clientY);
+  } else {
+    state.hover = [i];
+    showTip(pairTip(pairs[i]), e.clientX, e.clientY);
+  }
+  applyHighlight();
+});
+table.addEventListener("pointermove", e => { if (tip.classList.contains("on")) showTip(tip.innerHTML, e.clientX, e.clientY); });
+table.addEventListener("pointerleave", () => {
+  hotCell?.classList.remove("hot"); hotCell = null;
+  state.hover = []; hideTip(); applyHighlight();
+});
+table.addEventListener("click", e => {
+  const btn = e.target.closest("[data-toggle]");
+  if (!btn) return;
+  const key = btn.dataset.toggle;
+  state.hidden.has(key) ? state.hidden.delete(key) : state.hidden.add(key);
+  btn.setAttribute("aria-pressed", String(!state.hidden.has(key)));
+  applyHighlight();
+});
+
+/* Hover arrows in the scene */
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+let sceneHover = null;
+renderer.domElement.addEventListener("pointermove", e => {
+  if (e.buttons) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(pickables.filter(m => arrows[m.userData.i].g.visible), false)[0];
+  const i = hit ? hit.object.userData.i : null;
+  if (i !== sceneHover) {
+    sceneHover = i;
+    state.hover = i === null ? [] : [i];
+    applyHighlight();
+  }
+  if (i === null) hideTip();
+  else showTip(pairTip(pairs[i]), e.clientX, e.clientY);
+});
+renderer.domElement.addEventListener("pointerleave", () => { sceneHover = null; state.hover = []; hideTip(); applyHighlight(); });
+
+/* ---------- Controls ---------- */
+document.querySelectorAll("[data-dims]").forEach(b => b.addEventListener("click", () => {
+  state.dims = +b.dataset.dims;
+  syncButtons(); frameCamera(); moveTo();
+}));
+document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => {
+  state.mode = b.dataset.mode;
+  syncButtons(); frameCamera(); moveTo();
+}));
+
+function resize() {
+  const w = host.clientWidth, h = host.clientHeight;
+  renderer.setSize(w, h);
+  labelRenderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(host);
+
+resize();
+frameCamera();
+moveTo({ grow: true });
+
+renderer.setAnimationLoop(now => {
+  stepTween(now);
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
