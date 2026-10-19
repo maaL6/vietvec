@@ -5,9 +5,8 @@ import os
 import re
 import unicodedata
 from collections import Counter
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional
 import numpy as np
-from underthesea import word_tokenize
 
 
 URL_REGEX = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
@@ -48,6 +47,8 @@ def clean_and_tokenize(
     text = HTML_REGEX.sub(" ", text)
 
     # 3. Word tokenize with underthesea
+    from underthesea import word_tokenize
+
     try:
         tokenized_text = word_tokenize(text, format="text")
     except Exception:
@@ -191,34 +192,6 @@ class Vocabulary:
         # Probabilities are capped at 1.0
         self.keep_probs = np.clip(keep_prob, 0.0, 1.0)
 
-    def encode(self, tokens: List[str]) -> List[int]:
-        """Convert a list of word tokens to word IDs (skipping out-of-vocab words)."""
-        return [self.word2idx[w] for w in tokens if w in self.word2idx]
-
-    def decode(self, indices: List[int]) -> List[str]:
-        """Convert a list of word IDs back to word tokens."""
-        return [self.idx2word[i] for i in indices if i in self.idx2word]
-
-    def subsample(self, token_ids: List[int]) -> List[int]:
-        """Apply Mikolov subsampling to a sequence of token IDs.
-
-        Tokens with higher frequency are dropped with higher probability.
-        """
-        if self.keep_probs is None or not token_ids:
-            return token_ids
-
-        sampled: List[int] = []
-        rand_vals = np.random.random(len(token_ids))
-
-        for idx, word_id in enumerate(token_ids):
-            if word_id < len(self.keep_probs):
-                if rand_vals[idx] < self.keep_probs[word_id]:
-                    sampled.append(word_id)
-            else:
-                sampled.append(word_id)
-
-        return sampled
-
     def save(self, filepath: str) -> None:
         """Save vocabulary to a JSON file."""
         os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
@@ -276,9 +249,4 @@ if __name__ == "__main__":
     vocab.build_vocab(tokenized)
     print(f"Kích thước từ điển: {len(vocab)} từ")
     print(f"Top 5 từ xuất hiện nhiều nhất: {list(vocab.word2idx.keys())[:5]}")
-
-    print("\n--- 3. Kiểm tra Encode & Subsample ---")
-    first_sentence_ids = vocab.encode(tokenized[0])
-    print(f"Câu: {tokenized[0]}")
-    print(f"Token IDs: {first_sentence_ids}")
-    print(f"Sau Subsample: {vocab.subsample(first_sentence_ids)}")
+    print(f"Xác suất giữ lại (subsampling): {dict(zip(vocab.word2idx, vocab.keep_probs.round(3)))}")

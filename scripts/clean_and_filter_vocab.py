@@ -9,15 +9,18 @@ import os
 import re
 import shutil
 import sys
-import numpy as np
 
 # Ensure vietvec package is in path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from vietvec.preprocessing import Vocabulary
 
-# Match valid Vietnamese characters (lowercase letters, digits, underscore)
-VIETNAMESE_VALID_TOKEN_REGEX = re.compile(r"^[a-zà-ỹ0-9_]+$")
+# Match valid Vietnamese characters (lowercase letters, digits, underscore).
+# Diacritic letters are listed explicitly: a range like [à-ỹ] spans U+00E0..U+1EF9,
+# which also covers Greek and Cyrillic.
+VIETNAMESE_VALID_TOKEN_REGEX = re.compile(
+    r"^[a-z0-9_đàáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹ]+$"
+)
 
 
 def clean_and_filter_vocabulary(

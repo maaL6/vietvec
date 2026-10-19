@@ -1,7 +1,5 @@
 """Skip-gram architecture with Negative Sampling (SGNS) for Word2Vec."""
 
-import math
-from typing import Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -24,11 +22,12 @@ class SkipGramModel(nn.Module):
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
 
+        # sparse=True: each step only touches the rows in the batch (use SparseAdam / SGD)
         # Target (center) embeddings: W_in
-        self.in_embeddings = nn.Embedding(vocab_size, embed_dim)
+        self.in_embeddings = nn.Embedding(vocab_size, embed_dim, sparse=True)
 
         # Context embeddings: W_out
-        self.out_embeddings = nn.Embedding(vocab_size, embed_dim)
+        self.out_embeddings = nn.Embedding(vocab_size, embed_dim, sparse=True)
 
         self._init_weights()
 
@@ -88,36 +87,9 @@ class SkipGramModel(nn.Module):
         total_loss = torch.mean(pos_loss + neg_loss)
         return total_loss
 
-    def get_embeddings(self, use_norm: bool = False) -> torch.Tensor:
-        """Retrieve the target word embeddings (W_in).
-
-        Args:
-            use_norm: If True, L2-normalize vectors for cosine similarity computation.
-
-        Returns:
-            torch.Tensor: Matrix of shape (V, D) containing word vectors.
-        """
-        weights = self.in_embeddings.weight.detach()
-        if use_norm:
-            weights = F.normalize(weights, p=2, dim=1)
-        return weights
-
-    def save_word2vec_format(self, filepath: str, vocab) -> None:
-        """Export embeddings in standard Word2Vec text format (.vec).
-
-        Compatible with Gensim's KeyedVectors.load_word2vec_format().
-
-        Format:
-            <vocab_size> <embed_dim>
-            <word> <v_1> <v_2> ... <v_D>
-        """
-        weights = self.get_embeddings().cpu().numpy()
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(f"{self.vocab_size} {self.embed_dim}\n")
-            for idx in range(self.vocab_size):
-                word = vocab.idx2word[idx]
-                vec_str = " ".join(f"{val:.6f}" for val in weights[idx])
-                f.write(f"{word} {vec_str}\n")
+    def get_embeddings(self) -> torch.Tensor:
+        """Return the center word embeddings W_in, shape (V, D)."""
+        return self.in_embeddings.weight.detach()
 
 
 if __name__ == "__main__":
@@ -146,7 +118,7 @@ if __name__ == "__main__":
     print(f"Batch loss tính được: {loss.item():.4f}")
 
     print("\n--- 3. Kiểm tra Backward pass (Gradient) ---")
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.SparseAdam(model.parameters(), lr=0.001)
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
